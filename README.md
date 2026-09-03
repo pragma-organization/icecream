@@ -185,6 +185,41 @@ ic| 3: 3
 `ic()` continues to return its arguments when disabled, of course; no existing
 code with `ic()` breaks.
 
+For temporarily silencing `ic()` output over a block of code, use the
+`ic.disabled()` context manager. It suppresses output inside the block and
+automatically restores the previous enabled state when the block exits — even
+if an exception is raised.
+
+```python
+from icecream import ic
+
+ic(1)                  # prints
+with ic.disabled():
+    ic(2)              # suppressed
+ic(3)                  # prints again
+```
+
+Prints
+
+```
+ic| 1: 1
+ic| 3: 3
+```
+
+Nesting is safe: an inner `ic.disabled()` block will not re-enable `ic` when
+the outer block had already disabled it.
+
+```python
+with ic.disabled():
+    ic('outer suppressed')     # suppressed
+    with ic.disabled():
+        ic('inner suppressed') # suppressed
+    ic('still suppressed')     # suppressed
+```
+
+If `ic` was already disabled before entering the block, it remains disabled
+after the block exits.
+
 
 ### Import Tricks
 
@@ -250,7 +285,7 @@ or a function.
 ```pycon
 >>> import time
 >>> from icecream import ic
->>>  
+>>> 
 >>> def unixTimestamp():
 >>>     return '%i |> ' % int(time.time())
 >>>
@@ -369,8 +404,8 @@ ic| example.py:18 in foo()- i: 3
 
 `contextAbsPath` is False by default.
 
-If you want to use icecream with multiple log levels, like with Python’s
-`logging` module, you can use `ic.format()` to integrate icecream’s
+If you want to use icecream with multiple log levels, like with Python's
+`logging` module, you can use `ic.format()` to integrate icecream's
 debugging with your logger:
 
 ```python
