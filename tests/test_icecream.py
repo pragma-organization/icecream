@@ -798,3 +798,72 @@ ic| (a,
         finally:
             ic.configureOutput(noColor=originalNoColor)
             ic.outputFunction = originalOutputFunction
+
+    def test_disabled_context_manager_suppresses_output(self):
+        """Given ic is enabled, output is suppressed inside the block and
+        restored after."""
+        ic.enable()
+        with disable_coloring(), capture_standard_streams() as (out, err):
+            ic(a)  # Should print.
+            with ic.disabled():
+                ic(b)  # Should not print.
+            ic(c)  # Should print.
+
+        pairs = parse_output_into_pairs(out, err, 2)
+        assert pairs[0][0] == ('a', '1')
+        assert pairs[1][0] == ('c', '3')
+        assert ic.enabled  # Should be re-enabled after the block.
+
+    def test_disabled_context_manager_keeps_disabled_if_already_disabled(self):
+        """Given ic was already disabled, it remains disabled after the block."""
+        ic.disable()
+        try:
+            with disable_coloring(), capture_standard_streams() as (out, err):
+                with ic.disabled():
+                    ic(a)  # Should not print.
+                ic(b)  # Should still not print.
+            assert not err.getvalue()  # Nothing should have printed.
+            assert not ic.enabled  # Should still be disabled.
+        finally:
+            ic.enable()  # Restore for other tests.
+
+    def test_disabled_context_manager_restores_state_on_exception(self):
+        """Given the block raises, the previous enabled state is restored."""
+        ic.enable()
+        try:
+            with ic.disabled():
+                raise ValueError('test error')
+        except ValueError:
+            pass
+        assert ic.enabled  # Should be re-enabled after exception.
+
+        ic.disable()
+        try:
+            try:
+                with ic.disabled():
+                    raise ValueError('test error')
+            except ValueError:
+                pass
+            assert not ic.enabled  # Should remain disabled after exception.
+        finally:
+            ic.enable()  # Restore for other tests.
+
+    def test_disabled_context_manager_nested(self):
+        """Nested disabled() blocks: inner exit must not re-enable ic."""
+        ic.enable()
+        with disable_coloring(), capture_standard_streams() as (out, err):
+            ic(a)  # Should print.
+            with ic.disabled():
+                ic(b)  # Should not print.
+                with ic.disabled():
+                    ic(c)  # Should not print.
+                # After inner block exits, ic should still be disabled.
+                assert not ic.enabled
+                ic(b)  # Should not print.
+            # After outer block exits, ic should be re-enabled.
+            assert ic.enabled
+            ic(c)  # Should print.
+
+        pairs = parse_output_into_pairs(out, err, 2)
+        assert pairs[0][0] == ('a', '1')
+        assert pairs[1][0] == ('c', '3')

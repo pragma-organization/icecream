@@ -469,6 +469,22 @@ class IceCreamDebugger:
     def disable(self) -> None:
         self.enabled = False
 
+    @contextmanager
+    def disabled(self) -> Generator:
+        """Context manager that temporarily disables ic() output.
+
+        Suppresses output inside the block and restores the previous enabled
+        state on exit, even if the block raises an exception. Safe to nest:
+        an inner disabled() block will not re-enable ic when the outer block
+        had already disabled it.
+        """
+        previously_enabled = self.enabled
+        self.enabled = False
+        try:
+            yield
+        finally:
+            self.enabled = previously_enabled
+
     def use_stdout(self) -> None:
         if self.noColor:
             self.outputFunction = stdout_print
