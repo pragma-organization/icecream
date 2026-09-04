@@ -798,3 +798,53 @@ ic| (a,
         finally:
             ic.configureOutput(noColor=originalNoColor)
             ic.outputFunction = originalOutputFunction
+
+    def test_disabled_context_manager_suppresses_output(self):
+        """ic.disabled() suppresses output inside the block and restores it after."""
+        with disable_coloring(), capture_standard_streams() as (out, err):
+            ic(a)  # should print
+            with ic.disabled():
+                ic(b)  # should NOT print
+            ic(c)  # should print again
+
+        pairs = parse_output_into_pairs(out, err, 2)
+        assert pairs == [[('a', '1')], [('c', '3')]]
+        assert ic.enabled  # state restored
+
+    def test_disabled_context_manager_preserves_already_disabled_state(self):
+        """If ic was already disabled, it remains disabled after the block exits."""
+        ic.disable()
+        try:
+            with disable_coloring(), capture_standard_streams() as (out, err):
+                with ic.disabled():
+                    ic(a)  # should NOT print
+                ic(b)  # still should NOT print
+            assert not err.getvalue()
+            assert not ic.enabled  # remains disabled
+        finally:
+            ic.enable()  # clean up
+
+    def test_disabled_context_manager_restores_state_on_exception(self):
+        """The previous enabled state is restored even when the block raises."""
+        assert ic.enabled  # precondition
+        try:
+            with ic.disabled():
+                assert not ic.enabled
+                raise ValueError('test error')
+        except ValueError:
+            pass
+        assert ic.enabled  # restored after exception
+
+    def test_disabled_context_manager_nested(self):
+        """Nested disabled() blocks: inner exit must not re-enable ic."""
+        with disable_coloring(), capture_standard_streams() as (out, err):
+            with ic.disabled():
+                with ic.disabled():
+                    ic(a)  # should NOT print
+                # inner block exited; outer still active
+                ic(b)  # should NOT print
+            ic(c)  # should print
+
+        pairs = parse_output_into_pairs(out, err, 1)
+        assert pairs == [[('c', '3')]]
+        assert ic.enabled  # fully restored
