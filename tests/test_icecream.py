@@ -798,3 +798,59 @@ ic| (a,
         finally:
             ic.configureOutput(noColor=originalNoColor)
             ic.outputFunction = originalOutputFunction
+
+    def test_disabled_context_manager_suppresses_output(self):
+        """Given ic is enabled, output inside with ic.disabled() is suppressed and restored after."""
+        with disable_coloring(), capture_standard_streams() as (out, err):
+            ic(a)  # should print
+            with ic.disabled():
+                ic(b)  # should NOT print
+            ic(c)  # should print
+
+        lines = err.getvalue().strip().splitlines()
+        self.assertEqual(len(lines), 2)
+        self.assertIn('a', lines[0])
+        self.assertIn('c', lines[1])
+
+    def test_disabled_context_manager_preserves_disabled_state(self):
+        """Given ic was already disabled, it remains disabled after the block exits."""
+        ic.disable()
+        try:
+            with disable_coloring(), capture_standard_streams() as (out, err):
+                with ic.disabled():
+                    ic(a)  # should NOT print
+                ic(b)  # should still NOT print (was disabled before)
+            self.assertEqual(err.getvalue().strip(), '')
+            self.assertFalse(ic.enabled)
+        finally:
+            ic.enable()
+
+    def test_disabled_context_manager_restores_on_exception(self):
+        """Given the block raises an exception, the previous enabled state is restored."""
+        self.assertTrue(ic.enabled)
+        try:
+            with ic.disabled():
+                raise ValueError('test error')
+        except ValueError:
+            pass
+        self.assertTrue(ic.enabled)
+
+    def test_disabled_context_manager_nesting(self):
+        """Nested disabled() blocks: inner exit does not re-enable ic when outer block is also disabling."""
+        with disable_coloring(), capture_standard_streams() as (out, err):
+            ic(a)  # should print
+            with ic.disabled():
+                ic(b)  # should NOT print
+                with ic.disabled():
+                    ic(c)  # should NOT print
+                # After inner block exits, ic should still be disabled
+                self.assertFalse(ic.enabled)
+                ic(a)  # should NOT print
+            # After outer block exits, ic should be enabled again
+            self.assertTrue(ic.enabled)
+            ic(b)  # should print
+
+        lines = err.getvalue().strip().splitlines()
+        self.assertEqual(len(lines), 2)
+        self.assertIn('a', lines[0])
+        self.assertIn('b', lines[1])
