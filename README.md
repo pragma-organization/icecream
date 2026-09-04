@@ -185,6 +185,40 @@ ic| 3: 3
 `ic()` continues to return its arguments when disabled, of course; no existing
 code with `ic()` breaks.
 
+To silence `ic()` for just a block of code, use `ic.disabled()` as a context
+manager. The previous enabled state is restored on exit, even if the block
+raises an exception. Nesting is safe: an inner `ic.disabled()` block will not
+re-enable `ic` when the outer block had already disabled it.
+
+```python
+from icecream import ic
+
+ic(1)  # prints normally
+
+with ic.disabled():
+    ic(2)  # prints nothing
+
+ic(3)  # prints normally again
+```
+
+Prints
+
+```
+ic| 1: 1
+ic| 3: 3
+```
+
+Nested usage is safe:
+
+```python
+with ic.disabled():
+    ic(1)  # silent
+    with ic.disabled():
+        ic(2)  # silent
+    ic(3)  # still silent — outer block hasn't exited yet
+ic(4)  # prints normally
+```
+
 
 ### Import Tricks
 
